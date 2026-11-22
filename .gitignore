@@ -1,0 +1,12 @@
+# 依赖 / 构建产物
+node_modules/
+out/
+
+# 系统与编辑器杂物
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log
+*.tmp
+.vscode/
+.idea/

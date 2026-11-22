@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>微信聊天弹窗生成器</title>
+<style>
+  :root{
+    --bg:#0b0d11; --panel:#14171d; --panel2:#1a1e26; --line:#262b35;
+    --txt:#e8ebf0; --dim:#8b93a1; --accent:#07c160; --accent-d:#06ad56;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--txt);
+    font:14px/1.5 "PingFang SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:grid; grid-template-columns:392px 1fr; height:100vh; min-height:0}
+  /* ---------- 左侧控制区 ---------- */
+  .side{
+    background:var(--panel); border-right:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .side-head{padding:20px 20px 12px; border-bottom:1px solid var(--line)}
+  .side-head h1{margin:0; font-size:16px; font-weight:600; letter-spacing:.2px}
+  .side-head p{margin:6px 0 0; color:var(--dim); font-size:12px}
+  .side-body{padding:16px 20px 20px; overflow:auto; flex:1; min-height:0}
+  .field{margin-bottom:14px}
+  .field:last-child{margin-bottom:0}
+  .field > label{
+    display:flex; align-items:baseline; justify-content:space-between;
+    font-size:12px; color:var(--dim); margin-bottom:6px; letter-spacing:.3px;
+  }
+  .field > label .hint{color:#5d6675; font-size:11px}
+  input[type=text], textarea, select{
+    width:100%; background:var(--panel2); color:var(--txt);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+    font:inherit; outline:none; transition:border-color .15s, background .15s;
+  }
+  input[type=text]:focus, textarea:focus, select:focus{border-color:var(--accent); background:#1d222b}
+  textarea{resize:vertical; min-height:74px; line-height:1.5}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:7px}
+  .chip{
+    background:var(--panel2); border:1px solid var(--line); color:var(--dim);
+    border-radius:999px; padding:3px 10px; font-size:11.5px; cursor:pointer;
+    transition:all .14s; user-select:none;
+  }
+  .chip:hover{color:var(--txt); border-color:#333a47}
+  .chip.on{background:rgba(7,193,96,.14); border-color:rgba(7,193,96,.5); color:#5fdd9a}
+  /* ---------- 随机变形卡片 ---------- */
+  .deform-card{
+    margin-top:16px; border:1px solid var(--line); border-radius:var(--radius);
+    background:var(--panel2); overflow:hidden; transition:border-color .18s, background .18s;
+  }
+  .deform-card.on{border-color:rgba(7,193,96,.45); background:rgba(7,193,96,.055)}
+  .dc-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:11px 13px; cursor:pointer; user-select:none;
+  }
+  .dc-head .dc-title{display:flex; flex-direction:column; gap:2px}
+  .dc-head b{font-size:13px; font-weight:600; letter-spacing:.2px}
+  .dc-head em{font-style:normal; font-size:11px; color:#5d6675}
+  .dc-body{padding:0 13px 12px; display:none}
+  .deform-card.on .dc-body{display:block}
+  .dc-body .row > span:first-child{white-space:nowrap; flex:0 0 auto}
+  .dc-body .row .mini-select{max-width:148px; min-width:0}
+  .btn-mini{
+    background:var(--panel); color:var(--txt); border:1px solid var(--line);
+    border-radius:8px; padding:4px 10px; font:inherit; font-size:12px; cursor:pointer;
+    transition:border-color .15s, color .15s; white-space:nowrap;
+  }
+  .btn-mini:hover{border-color:var(--accent); color:#5fdd9a}
+  input[type=number]{
+    background:var(--panel); color:var(--txt); border:1px solid var(--line);
+    border-radius:8px; padding:4px 8px; font:inherit; font-size:12px; outline:none;
+    -moz-appearance:textfield;
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+  .stage-bar .tag.seed{color:#5fdd9a; border-color:rgba(7,193,96,.35); background:rgba(7,193,96,.1)}
+  details.adv{border:1px solid var(--line); border-radius:var(--radius); margin-top:16px; overflow:hidden; background:var(--panel2)}
+  details.adv > summary{
+    cursor:pointer; list-style:none; padding:11px 13px; font-size:12.5px; color:var(--dim);
+    display:flex; align-items:center; gap:8px; user-select:none;
+  }
+  details.adv > summary::-webkit-details-marker{display:none}
+  details.adv > summary::before{content:"▸"; font-size:10px; transition:transform .16s; color:#5d6675}
+  details.adv[open] > summary::before{transform:rotate(90deg)}
+  details.adv .adv-body{padding:4px 13px 14px; border-top:1px solid var(--line)}
+  .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 0; font-size:12.5px; color:var(--dim)}
+  .row + .row{border-top:1px dashed #22262e}
+  /* 开关：视觉层必须 pointer-events:none，否则会盖住透明的 checkbox 导致点不动；
+     input 再向外扩一圈，让开关更好点 */
+  .sw{position:relative; width:38px; height:22px; flex:0 0 auto}
+  .sw input{position:absolute; inset:-7px -5px; margin:0; opacity:0; cursor:pointer; z-index:2; -webkit-appearance:none; appearance:none}
+  .sw i{position:absolute; inset:0; border-radius:999px; background:#2b313c; transition:.16s; pointer-events:none}
+  .sw i::after{content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#98a1b0; transition:.16s}
+  .sw input:checked + i{background:rgba(7,193,96,.35)}
+  .sw input:checked + i::after{transform:translateX(16px); background:var(--accent)}
+  .row.clickable{cursor:pointer}
+  .range{display:flex; align-items:center; gap:10px}
+  input[type=range]{width:126px; accent-color:var(--accent)}
+  .val{font-variant-numeric:tabular-nums; color:var(--txt); min-width:34px; text-align:right; font-size:12px}
+  .mini-select{background:var(--panel); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:4px 8px; font-size:12px; outline:none}
+  .swatches{display:flex; gap:7px; align-items:center}
+  .swatch{width:20px; height:20px; border-radius:6px; border:1px solid rgba(255,255,255,.18); cursor:pointer; padding:0}
+  .swatch.on{outline:2px solid var(--accent); outline-offset:2px}
+  input[type=color]{width:26px; height:22px; padding:0; border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer}
+  .side-foot{
+    border-top:1px solid var(--line); padding:14px 20px 16px; display:flex; flex-direction:column; gap:9px;
+    background:linear-gradient(180deg,rgba(20,23,29,0),var(--panel) 30%);
+  }
+  .btn{
+    appearance:none; border:0; border-radius:10px; padding:11px 14px; font:inherit; font-weight:600;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; transition:transform .08s, filter .15s;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--accent); color:#04260f}
+  .btn-primary:hover{background:var(--accent-d)}
+  .btn-ghost{background:var(--panel2); color:var(--txt); border:1px solid var(--line); font-weight:500}
+  .btn-ghost:hover{border-color:#39404d}
+  .btn-row{display:grid; grid-template-columns:1fr 1fr; gap:9px}
+  /* ---------- 右侧预览 ---------- */
+  .stage{
+    position:relative; display:flex; flex-direction:column; min-width:0; min-height:0;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, #1b2230 0%, transparent 70%),
+      var(--bg);
+  }
+  .stage-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:14px 22px; border-bottom:1px solid var(--line); font-size:12px; color:var(--dim);
+  }
+  .stage-bar .tag{
+    display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px;
+    background:var(--panel2); border:1px solid var(--line); color:#9aa3b2; font-variant-numeric:tabular-nums;
+  }
+  .stage-bar .tag b{color:var(--txt); font-weight:600}
+  .stage-canvas{
+    flex:1; min-height:0; display:grid; place-items:center; padding:28px; overflow:auto;
+  }
+  .canvas-wrap{
+    position:relative; border-radius:14px;
+    background-image:
+      linear-gradient(45deg,#1a1e26 25%,transparent 25%,transparent 75%,#1a1e26 75%),
+      linear-gradient(45deg,#1a1e26 25%,transparent 25%,transparent 75%,#1a1e26 75%);
+    background-size:18px 18px; background-position:0 0,9px 9px; background-color:#12151a;
+    box-shadow:0 18px 50px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.05);
+    max-width:100%;
+  }
+  .canvas-wrap canvas{display:block; max-width:100%; height:auto; border-radius:14px}
+  .toast{
+    position:fixed; left:50%; bottom:34px; transform:translate(-50%,16px);
+    background:#232a35; color:#fff; border:1px solid #333c4a; padding:10px 18px; border-radius:999px;
+    font-size:13px; opacity:0; pointer-events:none; transition:.22s; z-index:99;
+    box-shadow:0 12px 30px rgba(0,0,0,.5);
+  }
+  .toast.show{opacity:1; transform:translate(-50%,0)}
+  /* ---------- 全屏演示 ---------- */
+  #present{
+    position:fixed; inset:0; z-index:200; display:none; align-items:flex-start; justify-content:center;
+    background:#000; padding-top:4vh;
+  }
+  #present.on{display:flex}
+  #present .p-canvas{
+    transform:translateY(-130%); opacity:0;
+    transition:transform .55s cubic-bezier(.22,1.2,.36,1), opacity .3s;
+    max-width:94vw;
+  }
+  #present.show .p-canvas{transform:translateY(0); opacity:1}
+  #present .p-tip{
+    position:absolute; bottom:18px; left:0; right:0; text-align:center; color:#5b6472; font-size:12px;
+  }
+  /* ---------- raw 模式（供自动截图/批处理） ---------- */
+  body.raw .app{display:none}
+  body.raw{background:transparent; overflow:hidden}
+  body.raw #raw-host{display:block}
+  #raw-host{display:none; line-height:0}
+  #raw-host canvas{display:block}
+  @media (max-width:900px){
+    .app{grid-template-columns:1fr; grid-template-rows:auto 1fr; height:auto}
+    .side{border-right:0; border-bottom:1px solid var(--line)}
+    .stage{min-height:60vh}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ 控制面板 ============ -->
+  <aside class="side">
+    <div class="side-head">
+      <h1>微信聊天弹窗生成器</h1>
+      <p>输入内容 → 实时预览 → 导出透明 PNG</p>
+    </div>
+    <div class="side-body">
+      <div class="field">
+        <label>用户名 <span class="hint">显示为粗体</span></label>
+        <input type="text" id="f-name" maxlength="24" value="老师" placeholder="例如：老师">
+      </div>
+      <div class="field">
+        <label>聊天内容 <span class="hint" id="line-count">1 行</span></label>
+        <textarea id="f-msg" rows="3" placeholder="例如：什么时候交作业？">什么时候交作业?</textarea>
+      </div>
+      <div class="field">
+        <label>时间 <span class="hint">右上方</span></label>
+        <input type="text" id="f-time" maxlength="16" value="现在">
+        <div class="chips" id="time-chips">
+          <span class="chip on" data-t="现在">现在</span>
+          <span class="chip" data-t="刚刚">刚刚</span>
+          <span class="chip" data-t="上午 9:41">上午 9:41</span>
+          <span class="chip" data-t="昨天">昨天</span>
+          <span class="chip" data-t="23:59">23:59</span>
+        </div>
+      </div>
+
+      <!-- ---------- 随机变形 ---------- -->
+      <div class="deform-card" id="deform-card">
+        <div class="dc-head" id="dc-head">
+          <span class="dc-title">
+            <b>随机变形</b>
+            <em>让弹窗像卡片一样翻飞、扭曲</em>
+          </span>
+          <span class="sw"><input type="checkbox" id="o-deform"><i></i></span>
+        </div>
+        <div class="dc-body" id="deform-box">
+          <div class="row"><span>种子</span>
+            <span class="range">
+              <input type="number" id="o-seed" min="1" max="999999" step="1" value="1" style="width:82px">
+              <button class="btn-mini" id="btn-reseed" type="button">换一个 ⟳</button>
+            </span>
+          </div>
+          <div class="row"><span>变形强度</span>
+            <span class="range"><input type="range" id="o-amount" min="20" max="140" step="5" value="100"><span class="val" id="v-amount">100%</span></span>
+          </div>
+          <div class="row"><span>画布</span>
+            <select class="mini-select" id="o-fit" title="随形扩展：画布跟着变形轮廓放大，单张最大；定宽一致：成片宽度固定，多张叠放时大小一致；固定原尺寸：画布永远是 744×146">
+              <option value="fit" selected>随形扩展</option>
+              <option value="width">定宽一致</option>
+              <option value="fixed">固定原尺寸</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <details class="adv">
+        <summary>细节与输出设置</summary>
+        <div class="adv-body">
+          <div class="row"><span>显示微信图标</span>
+            <span class="sw"><input type="checkbox" id="o-icon" checked><i></i></span>
+          </div>
+          <div class="row"><span>显示时间</span>
+            <span class="sw"><input type="checkbox" id="o-time" checked><i></i></span>
+          </div>
+          <div class="row"><span>柔和投影</span>
+            <span class="sw"><input type="checkbox" id="o-shadow" checked><i></i></span>
+          </div>
+          <div class="row"><span>圆角半径</span>
+            <span class="range"><input type="range" id="o-radius" min="0" max="40" step="1" value="24"><span class="val" id="v-radius">24</span></span>
+          </div>
+          <div class="row"><span>最多行数</span>
+            <select class="mini-select" id="o-lines">
+              <option value="1">1 行</option>
+              <option value="2">2 行</option>
+              <option value="3">3 行</option>
+              <option value="4" selected>4 行</option>
+            </select>
+          </div>
+          <div class="row"><span>导出倍率</span>
+            <select class="mini-select" id="o-scale">
+              <option value="1">1x（744×114）</option>
+              <option value="2">2x</option>
+              <option value="3" selected>3x（推荐）</option>
+              <option value="4">4x</option>
+            </select>
+          </div>
+          <div class="row"><span>导出背景</span>
+            <select class="mini-select" id="o-bg">
+              <option value="none" selected>透明</option>
+              <option value="color">纯色</option>
+              <option value="image">图片 + 模糊</option>
+            </select>
+          </div>
+          <div class="row" id="row-bg-color" style="display:none"><span>背景色</span>
+            <span class="swatches">
+              <button class="swatch on" data-c="#3f3e52" style="background:#3f3e52"></button>
+              <button class="swatch" data-c="#000000" style="background:#000"></button>
+              <button class="swatch" data-c="#ffffff" style="background:#fff"></button>
+              <button class="swatch" data-c="#1f6feb" style="background:#1f6feb"></button>
+              <button class="swatch" data-c="#d94f6b" style="background:#d94f6b"></button>
+              <input type="color" id="o-bgcolor" value="#3f3e52">
+            </span>
+          </div>
+          <div class="row" id="row-bg-img" style="display:none"><span>背景图片</span>
+            <input type="file" id="o-bgfile" accept="image/*" style="font-size:11px; width:150px; color:var(--dim)">
+          </div>
+          <div class="row" id="row-bg-blur" style="display:none"><span>模糊 / 压暗</span>
+            <span class="range"><input type="range" id="o-blur" min="0" max="60" step="2" value="24"><span class="val" id="v-blur">24</span></span>
+          </div>
+          <div class="row"><span>替换图标（可选）</span>
+            <input type="file" id="o-iconfile" accept="image/*" style="font-size:11px; width:150px; color:var(--dim)">
+          </div>
+          <div class="row"><span>字体</span>
+            <select class="mini-select" id="o-font">
+              <option value="sys" selected>系统（苹方/Noto）</option>
+              <option value="yahei">微软雅黑</option>
+              <option value="simhei">黑体</option>
+            </select>
+          </div>
+        </div>
+      </details>
+    </div>
+    <div class="side-foot">
+      <button class="btn btn-primary" id="btn-download">下载 PNG 图片</button>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btn-copy">复制到剪贴板</button>
+        <button class="btn btn-ghost" id="btn-present">全屏演示</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ 预览舞台 ============ -->
+  <main class="stage">
+    <div class="stage-bar">
+      <span class="tag">画布 <b id="meta-size">744 × 146</b></span>
+      <span class="tag">导出 <b id="meta-export">2232 × 438</b></span>
+      <span class="tag seed" id="meta-seed" style="display:none">变形种子 #1</span>
+      <span class="tag" style="color:#6d7686">1px 对齐 iOS 通知栏 · 内容自动换行</span>
+    </div>
+    <div class="stage-canvas">
+      <div class="canvas-wrap"><canvas id="preview"></canvas></div>
+    </div>
+  </main>
+</div>
+
+<div id="present"><canvas class="p-canvas" id="present-canvas"></canvas>
+  <div class="p-tip">点击画面重播动画 · 按 Esc 退出</div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="raw-host"><canvas id="raw-canvas"></canvas></div>
+
+<script>
+/* =========================================================
+   微 信 聊 天 弹 窗 生 成 器
+   —— 纯 Canvas 2D 绘制，全部尺寸以“设计单位”计量，
+      1 设计单位 = 参考图 747×144 截图中的 1 像素 = 2pt/2。
+   ========================================================= */
+const WECHAT_ICON = "__WECHAT_ICON_DATAURI__";   // 官方微信图标（App Store 原始素材，内嵌 base64）
+
+/* ---------- 调色板：与参考图逐像素取样一致 ---------- */
+const C = {
+  bubble: '#ffffff',
+  name:   '#191919',   // 标题：粗细 600，取样最暗 #121214 → 取微信标准墨色
+  msg:    '#191919',   // 正文：取样最暗 #171715
+  time:   '#888888',   // 时间：取样最暗 #858585
+  shadow: 'rgba(0,0,0,0.16)'
+};
+
+/* ---------- 版式常量（单位 = 参考图像素） ---------- */
+const T = {
+  padX: 16,            // 画布边距
+  bannerW: 712,        // 弹窗宽度
+  radius: 24,          // 圆角
+  padInkTop: 26,       // 弹窗顶 → 标题文字墨迹顶
+  nameToMsg: 36,       // 标题墨迹顶 → 首行正文墨迹顶
+  lineHeight: 36,      // 正文行高
+  padInkBottom: 26,    // 末行墨迹底 → 弹窗底
+  iconSize: 79,        // 微信图标边长
+  iconLeft: 23,        // 弹窗左 → 图标左
+  textLeft: 123,       // 弹窗左 → 文字墨迹左
+  textLeftNoIcon: 36,  // 无图标时文字左内边距（不保留图标空位）
+  timeTop: 21,         // 弹窗顶 → 时间墨迹顶
+  timeRight: 33,       // 时间墨迹右 → 弹窗右
+  nameSize: 27, msgSize: 27, timeSize: 22,
+  nameWeight: 600, msgWeight: 400, timeWeight: 400,
+  shadowBlur: 22, shadowY: 6
+};
+
+const FONTS = {
+  sys:    '"PingFang SC","Noto Sans SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif',
+  yahei:  '"Microsoft YaHei","Noto Sans SC",sans-serif',
+  simhei: '"SimHei","Noto Sans SC",sans-serif'
+};
+
+/* ---------- 状态 ---------- */
+const state = {
+  name:'老师', msg:'什么时候交作业?', time:'现在',
+  showIcon:true, showTime:true, shadow:true,
+  radius:T.radius, maxLines:4, scale:3,
+  bg:'none', bgColor:'#3f3e52', bgImage:null, bgBlur:24,
+  iconSrc:null, font:'sys',
+  /* 随机变形 */
+  deform:false, deformSeed:1, deformAmount:100, deformFit:'fit'
+};
+
+let iconImg = null;      // 当前使用的图标 Image
+let bgImg = null;        // 背景图片 Image
+
+/* =========================================================
+   工具函数
+   ========================================================= */
+function fontOf(stack, size, weight){ return weight + ' ' + size + 'px ' + stack; }
+
+function roundedRect(ctx, x, y, w, h, r){
+  r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  ctx.beginPath();
+  if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+/* 逐字断行：中文按字断，英文/数字按词断 */
+function tokenize(text){
+  const out = [], re = /[A-Za-z0-9@._%+\-/]+|\s+|[^\s]/gu;
+  let m;
+  while ((m = re.exec(text)) !== null) out.push(m[0]);
+  return out;
+}
+
+function wrapText(ctx, text, maxW, maxLines){
+  const lines = [];
+  const paras = String(text).replace(/\r/g, '').split('\n');
+  for (const para of paras){
+    if (para === ''){ lines.push(''); continue; }
+    let cur = '';
+    for (const tk of tokenize(para)){
+      const test = cur + tk;
+      if (ctx.measureText(test).width <= maxW || cur === ''){ cur = test; }
+      else { lines.push(cur.replace(/\s+$/, '')); cur = (tk === ' ' ? '' : tk); }
+    }
+    if (cur !== '') lines.push(cur.replace(/\s+$/, ''));
+  }
+  // 截断
+  if (lines.length > maxLines){
+    lines.length = maxLines;
+    let last = lines[maxLines - 1];
+    while (last.length && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1);
+    lines[maxLines - 1] = last + '…';
+  }
+  return lines.length ? lines : [''];
+}
+
+function ellipsize(ctx, text, maxW){
+  if (ctx.measureText(text).width <= maxW) return text;
+  let s = text;
+  while (s.length && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+  return s + '…';
+}
+
+/* 把文字墨迹的左上角精确放到 (inkLeft, inkTop)
+   —— 用 actualBoundingBox 反推起点，做到与参考图逐像素对齐 */
+function inkMetrics(ctx, text){
+  const m = ctx.measureText(text);
+  return {
+    left:  m.actualBoundingBoxLeft  || 0,   // 墨迹相对原点的左侧偏移
+    right: m.actualBoundingBoxRight || 0,
+    asc:   m.actualBoundingBoxAscent  || 0,
+    desc:  m.actualBoundingBoxDescent || 0,
+    width: m.width
+  };
+}
+function drawInkTopLeft(ctx, text, inkLeft, inkTop){
+  const k = inkMetrics(ctx, text);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(text, inkLeft + k.left, inkTop + k.asc);
+  return k;
+}
+function drawInkTopRight(ctx, text, inkRight, inkTop){
+  const k = inkMetrics(ctx, text);
+  const inkW = k.left + k.right;
+  const x = inkRight - inkW + k.left;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(text, x, inkTop + k.asc);
+  return k;
+}
+
+/* =========================================================
+   版式计算：只测量，不绘制
+   ========================================================= */
+const _measureCtx = document.createElement('canvas').getContext('2d');
+
+function layoutBanner(st){
+  const ctx = _measureCtx;
+  const stack = FONTS[st.font] || FONTS.sys;
+  const bw = T.bannerW;
+
+  /* ---- 1. 排文字 ---- */
+  const timeFont = fontOf(stack, T.timeSize, T.timeWeight);
+  const timeText = st.showTime ? String(st.time || '') : '';
+  let timeInk = null;
+  if (timeText){ ctx.font = timeFont; timeInk = inkMetrics(ctx, timeText); }
+  const timeW = timeInk ? timeInk.left + timeInk.right : 0;
+
+  const contentRight = bw - T.timeRight;                 // 文字区右界（弹窗内坐标）
+  /* 没有图标（或关掉图标）时，文字自动左移，不留空位 */
+  const hasIcon   = !!(st.showIcon && iconImg);
+  const textLeft  = hasIcon ? T.textLeft : T.textLeftNoIcon;
+  const textMaxW  = contentRight - textLeft;             // 正文最大宽度
+  const nameMaxW  = textMaxW - (timeText ? timeW + 26 : 0);
+
+  const nameFont = fontOf(stack, T.nameSize, T.nameWeight);
+  ctx.font = nameFont;
+  const nameText = ellipsize(ctx, String(st.name || ''), Math.max(20, nameMaxW));
+  const nameInk = inkMetrics(ctx, nameText);
+
+  const msgFont = fontOf(stack, T.msgSize, T.msgWeight);
+  ctx.font = msgFont;
+  const lines = wrapText(ctx, st.msg || '', textMaxW, st.maxLines);
+  const lineInk = lines.map(l => inkMetrics(ctx, l));
+
+  /* ---- 2. 高度：上下墨迹留白对称 ---- */
+  const nameInkTop = T.padInkTop;
+  const msgInkTop0 = nameInkTop + T.nameToMsg;
+  const firstAsc   = Math.max(lineInk[0].asc, 1);
+  const y0         = msgInkTop0 + firstAsc;              // 首行正文基线
+  const lastBase   = y0 + (lines.length - 1) * T.lineHeight;
+  const lastDesc   = Math.max(...lineInk.map(k => k.desc));
+  const bh = Math.round(lastBase + lastDesc + T.padInkBottom);
+
+  return {
+    W: bw + T.padX * 2, H: bh + T.padX * 2,
+    bx: T.padX, by: T.padX, bw, bh,
+    radius: st.radius, textLeft, hasIcon,
+    nameText, nameInk, nameFont, lines, lineInk, msgFont, y0, nameInkTop,
+    timeText, timeInk, timeFont, contentRight, textMaxW
+  };
+}
+
+/* ---- 背景（设计单位坐标系） ---- */
+function paintBackground(ctx, st, W, H){
+  ctx.clearRect(0, 0, W, H);
+  if (st.bg === 'color'){
+    ctx.fillStyle = st.bgColor || '#3f3e52';
+    ctx.fillRect(0, 0, W, H);
+  } else if (st.bg === 'image' && bgImg){
+    drawCover(ctx, bgImg, 0, 0, W, H, st.bgBlur || 0);
+  }
+}
+
+/* ---- 弹窗本体（设计单位坐标系；变形模式下投影在合成阶段统一加） ---- */
+function paintBanner(ctx, st, L){
+  const bx = L.bx, by = L.by, bw = L.bw, bh = L.bh;
+
+  /* 白色圆角弹窗 */
+  ctx.save();
+  if (st.shadow && !st.deform){
+    ctx.shadowColor = C.shadow;
+    ctx.shadowBlur = T.shadowBlur;
+    ctx.shadowOffsetY = T.shadowY;
+  }
+  ctx.fillStyle = C.bubble;
+  roundedRect(ctx, bx, by, bw, bh, L.radius);
+  ctx.fill();
+  ctx.restore();
+
+  /* 图标 */
+  if (L.hasIcon && iconImg){
+    const iy = by + (bh - T.iconSize) / 2;
+    const rad = T.iconSize * 0.2237;                     // iOS 圆角比例
+    ctx.save();
+    roundedRect(ctx, bx + T.iconLeft, iy, T.iconSize, T.iconSize, rad);
+    ctx.clip();
+    ctx.drawImage(iconImg, bx + T.iconLeft, iy, T.iconSize, T.iconSize);
+    ctx.restore();
+  }
+
+  /* 文字（墨迹精确对齐） */
+  ctx.save();
+  ctx.fillStyle = C.name;
+  ctx.font = L.nameFont;
+  drawInkTopLeft(ctx, L.nameText, bx + L.textLeft, by + L.nameInkTop);
+
+  ctx.fillStyle = C.msg;
+  ctx.font = L.msgFont;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  L.lines.forEach((line, i) => {
+    ctx.fillText(line, bx + L.textLeft + L.lineInk[i].left, by + L.y0 + i * T.lineHeight);
+  });
+
+  if (L.timeText){
+    ctx.fillStyle = C.time;
+    ctx.font = L.timeFont;
+    drawInkTopRight(ctx, L.timeText, bx + bw - T.timeRight, by + T.timeTop);
+  }
+  ctx.restore();
+}
+
+/* 背景图 cover 绘制（可选模糊 + 压暗，模拟锁屏壁纸） */
+function drawCover(ctx, img, x, y, w, h, blur){
+  const ir = img.width / img.height, br = w / h;
+  let sw = img.width, sh = img.height, sx = 0, sy = 0;
+  if (ir > br){ sw = img.height * br; sx = (img.width - sw) / 2; }
+  else        { sh = img.width / br;  sy = (img.height - sh) / 2; }
+
+  const supportsFilter = 'filter' in ctx;
+  const big = blur > 0 ? 1 + blur / 26 : 1;              // 模糊时放大避免透明边缘
+  ctx.save();
+  if (blur > 0 && supportsFilter) ctx.filter = 'blur(' + blur + 'px)';
+  const dw = w * big, dh = h * big;
+  ctx.drawImage(img, sx, sy, sw, sh, x - (dw - w) / 2, y - (dh - h) / 2, dw, dh);
+  ctx.restore();
+  if (blur > 0) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(x, y, w, h); }
+}
+
+/* =========================================================
+   随机变形：3D 翻转 + 透视除法 + 柔性弯曲 → 网格仿射贴图
+   ========================================================= */
+function mulberry32(seed){
+  let a = (seed >>> 0) || 1;
+  return function(){
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* 由种子生成一组确定的变形参数（同种子 = 同结果，方便复现）
+   三种形态随机混用：
+     flip —— 整体绕 Y 轴翻转（近大远小，端部压缩）
+     curl —— 绕竖直圆柱卷曲（两端向后弯，轮廓呈弧形）
+     mix  —— 两者兼有，最接近参考图的观感 */
+function deformParams(seed, amount, W){
+  const r = mulberry32(seed);
+  const k = Math.max(0.15, Math.min(1.45, (amount == null ? 100 : amount) / 100));
+  const sgn = () => (r() < 0.5 ? -1 : 1);
+
+  const pick = r();
+  const mode = pick < 0.34 ? 'flip' : (pick < 0.68 ? 'curl' : 'mix');
+
+  let arc = 0, rotY = 0, P = 0.2;
+  if (mode === 'flip'){
+    rotY = sgn() * (0.36 + r() * 0.22) * k;          // 21°~33°
+    arc  = r() * 0.08 * k;
+    P    = (0.17 + r() * 0.14) * k;
+  } else if (mode === 'curl'){
+    rotY = sgn() * (0.03 + r() * 0.10) * k;
+    arc  = (0.70 + r() * 0.85) * k;                  // 40°~89°
+    P    = (0.25 + r() * 0.30) * k;
+  } else {
+    rotY = sgn() * (0.16 + r() * 0.14) * k;
+    arc  = (0.30 + r() * 0.40) * k;
+    P    = (0.18 + r() * 0.22) * k;
+  }
+
+  const rotX = sgn() * (0.04 + r() * 0.14) * k;
+  const rotZ = sgn() * (0.015 + r() * 0.060) * k;
+  const arcDir = sgn();
+
+  const halfW  = W / 2;
+  const zRot   = halfW * Math.abs(Math.sin(rotY));
+  const zBend  = arc > 1e-4
+    ? (halfW / Math.max(1e-4, Math.sin(Math.abs(arc)))) * (1 - Math.cos(arc))
+    : 0;
+  const dist = Math.max(150, (zRot + zBend) / Math.max(0.05, P));
+
+  return {
+    k, mode, arc, arcDir, rotX, rotY, rotZ, dist,
+    curl: (0.0018 + r() * 0.0060) * k,               // 只留一丝柔性，保持硬卡片感
+    curlFreq: 0.6 + r() * 1.6,
+    curlPhase: r() * Math.PI * 2
+  };
+}
+
+/* 采样点映射：uv ∈ [0,1]² → 变形后坐标（设计单位） */
+function warpPoint(u, v, L, dp){
+  const W = L.W, H = L.H;
+  let x = (u - 0.5) * W;
+  let y = (v - 0.5) * H;
+  let z = 0;
+
+  /* 一丝柔性扰动，避免完全刚体 */
+  if (dp.curl > 0){
+    y += Math.sin(dp.curlPhase + u * Math.PI * 2 * dp.curlFreq) * H * dp.curl;
+  }
+
+  /* 圆柱卷曲：两端前后弯曲，轮廓变弧形。
+     注意 arcDir 只翻转深度方向，绝不影响 x 的符号，否则整块会镜像 */
+  if (dp.arc > 1e-4){
+    const a  = Math.abs(dp.arc);
+    const th = (u - 0.5) * 2 * a;
+    const R  = (W / 2) / Math.max(1e-4, Math.sin(a));
+    x = R * Math.sin(th);
+    z = R * (1 - Math.cos(th)) * dp.arcDir;
+  }
+
+  const cx = Math.cos(dp.rotX), sx = Math.sin(dp.rotX);
+  const cy = Math.cos(dp.rotY), sy = Math.sin(dp.rotY);
+  const cz = Math.cos(dp.rotZ), sz = Math.sin(dp.rotZ);
+
+  const x1 = x * cz - y * sz, y1 = x * sz + y * cz;        // 平面内扭转
+  const x2 = x1 * cy + z * sy, z2 = -x1 * sy + z * cy;     // 绕 Y 翻转
+  const y3 = y1 * cx - z2 * sx, z3 = y1 * sx + z2 * cx;    // 绕 X 俯仰
+
+  const s = dp.dist / (dp.dist + z3);                      // 透视除法
+  return { x: x2 * s, y: y3 * s };
+}
+
+const DEFORM_COLS = 30, DEFORM_ROWS = 8;
+
+/* 规划变形后的画布尺寸与网格顶点（网格坐标为最终像素） */
+function planWarp(st, L, scale){
+  const dp = deformParams(st.deformSeed, st.deformAmount, L.W);
+  const cols = DEFORM_COLS, rows = DEFORM_ROWS;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const grid = [];
+  for (let j = 0; j <= rows; j++){
+    const row = [];
+    for (let i = 0; i <= cols; i++){
+      const p = warpPoint(i / cols, j / rows, L, dp);
+      row.push(p);
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    grid.push(row);
+  }
+
+  const m = 8;                                   // 设计单位留白
+  const bwd = Math.max(1, maxX - minX), bhd = Math.max(1, maxY - minY);
+  const mode = st.deformFit === 'fixed' ? 'fixed' : (st.deformFit === 'width' ? 'width' : 'fit');
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  let W, H, fit = 1;
+  if (mode === 'fixed'){
+    /* 画布完全等于基准尺寸，内容等比缩到框内 */
+    W = L.W; H = L.H;
+    fit = Math.min((W - m * 2) / bwd, (H - m * 2) / bhd);
+  } else if (mode === 'width'){
+    /* 画布宽度固定：无论怎么变形，弹窗在成片里都一样宽，便于多张叠放 */
+    W = L.W;
+    fit = (W - m * 2) / bwd;
+    H = bhd * fit + m * 2;
+  } else {
+    W = bwd + m * 2;
+    H = bhd + m * 2;
+  }
+
+  const mesh = grid.map(row => row.map(p => {
+    const x = mode === 'fit' ? p.x - minX + m : (p.x - cx) * fit + W / 2;
+    const y = mode === 'fit' ? p.y - minY + m : (p.y - cy) * fit + H / 2;
+    return { x: x * scale, y: y * scale };
+  }));
+
+  return { dp, mesh, cols, rows, W, H,
+           Wpx: Math.max(1, Math.round(W * scale)),
+           Hpx: Math.max(1, Math.round(H * scale)) };
+}
+
+/* 由三对点解出仿射矩阵 [a,b,c,d,e,f] */
+function cellAffine(s0, s1, s2, d0, d1, d2){
+  const ax = s1.x - s0.x, ay = s1.y - s0.y;
+  const bx = s2.x - s0.x, by = s2.y - s0.y;
+  const det = ax * by - bx * ay;
+  if (!det) return null;
+  const px = d1.x - d0.x, py = d1.y - d0.y;
+  const qx = d2.x - d0.x, qy = d2.y - d0.y;
+  const a = (px * by - qx * ay) / det;
+  const c = (qx * ax - px * bx) / det;
+  const b = (py * by - qy * ay) / det;
+  const d = (qy * ax - py * bx) / det;
+  return [a, b, c, d, d0.x - a * s0.x - c * s0.y, d0.y - b * s0.x - d * s0.y];
+}
+
+let _warpLayer = null, _srcLayer = null;
+
+function paintWarped(ctx, st, L, P, scale){
+  const Wpx = P.Wpx, Hpx = P.Hpx;
+
+  /* 1) 未变形的弹窗先画进位图 */
+  const sw = Math.max(1, Math.round(L.W * scale));
+  const sh = Math.max(1, Math.round(L.H * scale));
+  if (!_srcLayer) _srcLayer = document.createElement('canvas');
+  if (_srcLayer.width !== sw || _srcLayer.height !== sh){
+    _srcLayer.width = sw; _srcLayer.height = sh;
+  }
+  const sctx = _srcLayer.getContext('2d');
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.clearRect(0, 0, sw, sh);
+  sctx.setTransform(scale, 0, 0, scale, 0, 0);
+  paintBanner(sctx, st, L);
+  const src = _srcLayer;
+
+  /* 2) 逐格仿射贴图（格子外扩 0.55px 消除接缝） */
+  if (!_warpLayer) _warpLayer = document.createElement('canvas');
+  if (_warpLayer.width !== Wpx || _warpLayer.height !== Hpx){
+    _warpLayer.width = Wpx; _warpLayer.height = Hpx;
+  }
+  const wctx = _warpLayer.getContext('2d');
+  wctx.setTransform(1, 0, 0, 1, 0, 0);
+  wctx.clearRect(0, 0, Wpx, Hpx);
+
+  const cols = P.cols, rows = P.rows, mesh = P.mesh;
+  const cw = sw / cols, ch = sh / rows, pad = 1.5;
+  for (let j = 0; j < rows; j++){
+    for (let i = 0; i < cols; i++){
+      const p00 = mesh[j][i], p10 = mesh[j][i + 1];
+      const p11 = mesh[j + 1][i + 1], p01 = mesh[j + 1][i];
+      const gx = (p00.x + p10.x + p11.x + p01.x) / 4;
+      const gy = (p00.y + p10.y + p11.y + p01.y) / 4;
+      const grow = p => {
+        const dx = p.x - gx, dy = p.y - gy;
+        const len = Math.hypot(dx, dy) || 1;
+        return { x: p.x + dx * 0.55 / len, y: p.y + dy * 0.55 / len };
+      };
+      const q00 = grow(p00), q10 = grow(p10), q11 = grow(p11), q01 = grow(p01);
+      const sx0 = i * cw, sy0 = j * ch;
+      const mtx = cellAffine(
+        { x: sx0, y: sy0 }, { x: sx0 + cw, y: sy0 }, { x: sx0, y: sy0 + ch },
+        q00, q10, q01);
+      if (!mtx) continue;
+      wctx.save();
+      wctx.beginPath();
+      wctx.moveTo(q00.x, q00.y);
+      wctx.lineTo(q10.x, q10.y);
+      wctx.lineTo(q11.x, q11.y);
+      wctx.lineTo(q01.x, q01.y);
+      wctx.closePath();
+      wctx.clip();
+      wctx.setTransform(mtx[0], mtx[1], mtx[2], mtx[3], mtx[4], mtx[5]);
+      wctx.drawImage(src,
+        sx0 - pad, sy0 - pad, cw + pad * 2, ch + pad * 2,
+        sx0 - pad, sy0 - pad, cw + pad * 2, ch + pad * 2);
+      wctx.restore();
+    }
+  }
+
+  /* 3) 合成：背景 → 跟随轮廓的投影 → 变形弹窗 */
+  ctx.save();
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  paintBackground(ctx, st, P.W, P.H);
+  ctx.restore();
+
+  if (st.shadow && 'filter' in ctx){
+    ctx.save();
+    ctx.filter = 'drop-shadow(0 ' + (T.shadowY * 0.8 * scale).toFixed(1) + 'px ' +
+                 (T.shadowBlur * 0.5 * scale).toFixed(1) + 'px rgba(0,0,0,0.28))';
+    ctx.drawImage(_warpLayer, 0, 0);
+    ctx.restore();
+  } else {
+    ctx.drawImage(_warpLayer, 0, 0);
+  }
+}
+
+/* =========================================================
+   渲染入口
+   ========================================================= */
+function renderTo(canvas, st, scale){
+  const L = layoutBanner(st);
+  if (st.deform){
+    const P = planWarp(st, L, scale);
+    canvas.width  = P.Wpx;
+    canvas.height = P.Hpx;
+    paintWarped(canvas.getContext('2d'), st, L, P, scale);
+    return { W: P.W, H: P.H };
+  }
+  canvas.width  = Math.round(L.W * scale);
+  canvas.height = Math.round(L.H * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  paintBackground(ctx, st, L.W, L.H);
+  paintBanner(ctx, st, L);
+  return { W: L.W, H: L.H };
+}
+
+/* 只算尺寸（预览排版用） */
+function compositionSize(st){
+  const L = layoutBanner(st);
+  if (st.deform){
+    const P = planWarp(st, L, 1);
+    return { W: P.W, H: P.H };
+  }
+  return { W: L.W, H: L.H };
+}
+
+function renderPreview(){
+  const cv = document.getElementById('preview');
+  const stage = document.querySelector('.stage-canvas');
+  const sz = compositionSize(state);
+  const availW = Math.max(240, (stage.clientWidth  || 900) - 56);
+  const availH = Math.max(120, (stage.clientHeight || 420) - 56);
+  const cssScale = Math.min(availW / sz.W, availH / sz.H, 1.9);
+  const px = Math.min(window.devicePixelRatio || 1, 2);
+  renderTo(cv, state, cssScale * px);
+  cv.style.width  = (sz.W * cssScale) + 'px';
+  cv.style.height = (sz.H * cssScale) + 'px';
+  document.getElementById('meta-size').textContent =
+    Math.round(sz.W) + ' × ' + Math.round(sz.H);
+  document.getElementById('meta-export').textContent =
+    Math.round(sz.W * state.scale) + ' × ' + Math.round(sz.H * state.scale);
+  const seedTag = document.getElementById('meta-seed');
+  if (seedTag){
+    seedTag.style.display = state.deform ? '' : 'none';
+    if (state.deform) seedTag.textContent = '变形种子 #' + state.deformSeed;
+  }
+}
+
+function exportCanvas(){
+  const cv = document.createElement('canvas');
+  renderTo(cv, state, state.scale);
+  return cv;
+}
+
+/* =========================================================
+   UI 绑定
+   ========================================================= */
+const $ = id => document.getElementById(id);
+let rafPending = false;
+function scheduleRender(){ if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderPreview(); }); }
+
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), 1900);
+}
+
+function updateLineCount(){
+  const L = layoutBanner(state);
+  $('line-count').textContent = L.lines.length + ' 行';
+}
+
+/* ---------- 随机变形 ---------- */
+function randomSeed(){ return Math.floor(Math.random() * 999998) + 1; }
+
+function syncDeformUI(){
+  const card = $('deform-card');
+  if (!card) return;
+  card.classList.toggle('on', !!state.deform);
+  $('o-deform').checked = !!state.deform;
+  $('o-seed').value = state.deformSeed;
+  $('o-amount').value = state.deformAmount;
+  $('v-amount').textContent = state.deformAmount + '%';
+  $('o-fit').value = state.deformFit;
+}
+
+function bind(){
+  $('f-name').addEventListener('input', e => { state.name = e.target.value; scheduleRender(); save(); });
+  $('f-msg').addEventListener('input',  e => { state.msg  = e.target.value; updateLineCount(); scheduleRender(); save(); });
+  $('f-time').addEventListener('input', e => { state.time = e.target.value; syncChips(); scheduleRender(); save(); });
+
+  document.querySelectorAll('#time-chips .chip').forEach(ch => {
+    ch.addEventListener('click', () => {
+      $('f-time').value = ch.dataset.t; state.time = ch.dataset.t;
+      syncChips(); scheduleRender(); save();
+    });
+  });
+
+  $('o-icon').addEventListener('change', e => { state.showIcon = e.target.checked; scheduleRender(); save(); });
+  $('o-time').addEventListener('change', e => { state.showTime = e.target.checked; scheduleRender(); save(); });
+  $('o-shadow').addEventListener('change', e => { state.shadow = e.target.checked; scheduleRender(); save(); });
+
+  /* 整行都可点：点“显示微信图标”这类文字同样能切换开关 */
+  document.querySelectorAll('.row').forEach(row => {
+    const cb = row.querySelector('.sw input[type=checkbox]');
+    if (!cb) return;
+    row.classList.add('clickable');
+    row.addEventListener('click', e => {
+      if (e.target.closest('.sw')) return;   // 开关自身已有原生行为
+      cb.click();
+    });
+  });
+
+  /* ---- 随机变形 ---- */
+  $('dc-head').addEventListener('click', e => {
+    if (e.target.closest('.sw')) return;
+    $('o-deform').checked = !$('o-deform').checked;
+    $('o-deform').dispatchEvent(new Event('change'));
+  });
+  $('o-deform').addEventListener('change', e => {
+    state.deform = e.target.checked;
+    if (state.deform) state.deformSeed = randomSeed();     // 每次开启都给一个新造型
+    syncDeformUI(); save(); scheduleRender();
+  });
+  $('btn-reseed').addEventListener('click', () => {
+    state.deformSeed = randomSeed();
+    $('o-seed').value = state.deformSeed;
+    save(); scheduleRender();
+  });
+  $('o-seed').addEventListener('change', e => {
+    let v = parseInt(e.target.value, 10);
+    if (!isFinite(v) || v < 1) v = 1;
+    if (v > 999999) v = 999999;
+    state.deformSeed = v; e.target.value = v; save(); scheduleRender();
+  });
+  $('o-amount').addEventListener('input', e => {
+    state.deformAmount = +e.target.value;
+    $('v-amount').textContent = state.deformAmount + '%';
+    save(); scheduleRender();
+  });
+  $('o-fit').addEventListener('change', e => {
+    state.deformFit = e.target.value; save(); scheduleRender();
+  });
+
+  $('o-radius').addEventListener('input', e => {
+    state.radius = +e.target.value; $('v-radius').textContent = state.radius; scheduleRender(); save();
+  });
+  $('o-lines').addEventListener('change', e => { state.maxLines = +e.target.value; updateLineCount(); scheduleRender(); save(); });
+  $('o-scale').addEventListener('change', e => { state.scale = +e.target.value; renderPreview(); save(); });
+  $('o-bg').addEventListener('change', e => {
+    state.bg = e.target.value;
+    $('row-bg-color').style.display = state.bg === 'color' ? 'flex' : 'none';
+    $('row-bg-img').style.display   = state.bg === 'image' ? 'flex' : 'none';
+    $('row-bg-blur').style.display  = state.bg === 'image' ? 'flex' : 'none';
+    scheduleRender(); save();
+  });
+  document.querySelectorAll('.swatch').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.swatch').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    state.bgColor = b.dataset.c; $('o-bgcolor').value = b.dataset.c; scheduleRender(); save();
+  }));
+  $('o-bgcolor').addEventListener('input', e => { state.bgColor = e.target.value; scheduleRender(); save(); });
+  $('o-blur').addEventListener('input', e => { state.bgBlur = +e.target.value; $('v-blur').textContent = state.bgBlur; scheduleRender(); });
+  $('o-font').addEventListener('change', e => { state.font = e.target.value; updateLineCount(); scheduleRender(); save(); });
+
+  $('o-bgfile').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { const im = new Image(); im.onload = () => { bgImg = im; state.bgImage = rd.result; scheduleRender(); }; im.src = rd.result; };
+    rd.readAsDataURL(f);
+  });
+
+  $('o-iconfile').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { const im = new Image(); im.onload = () => { iconImg = im; state.iconSrc = rd.result; scheduleRender(); }; im.src = rd.result; };
+    rd.readAsDataURL(f);
+  });
+
+  $('btn-download').addEventListener('click', () => {
+    const cv = exportCanvas();
+    const name = '微信聊天弹窗_' + (state.name || '通知') +
+                 (state.deform ? '_变形' + state.deformSeed : '') +
+                 '_' + state.scale + 'x.png';
+    cv.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name.replace(/[\\/:*?"<>|]/g, '_');
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast('已导出 ' + cv.width + ' × ' + cv.height + ' PNG');
+    }, 'image/png');
+  });
+
+  $('btn-copy').addEventListener('click', async () => {
+    try {
+      const cv = exportCanvas();
+      const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      toast('已复制到剪贴板');
+    } catch (err) {
+      toast('该浏览器不允许复制，请用“下载 PNG”');
+    }
+  });
+
+  $('btn-present').addEventListener('click', startPresent);
+
+  window.addEventListener('resize', scheduleRender);
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') stopPresent();
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); $('btn-download').click(); }
+  });
+}
+
+function syncChips(){
+  document.querySelectorAll('#time-chips .chip').forEach(ch => ch.classList.toggle('on', ch.dataset.t === state.time));
+}
+
+/* ---------- 全屏演示 ---------- */
+function startPresent(){
+  const wrap = $('present');
+  const cv = $('present-canvas');
+  renderTo(cv, state, 3);
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const fit = Math.min((vw * 0.9) / cv.width, (vh * 0.5) / cv.height);
+  cv.style.width  = (cv.width * fit) + 'px';
+  cv.style.height = (cv.height * fit) + 'px';
+  wrap.classList.add('on');
+  wrap.classList.remove('show');
+  wrap.onclick = () => { wrap.classList.remove('show'); void wrap.offsetWidth; wrap.classList.add('show'); };
+  if (wrap.requestFullscreen) wrap.requestFullscreen().catch(() => {});
+  setTimeout(() => wrap.classList.add('show'), 120);
+  try { document.body.style.overflow = 'hidden'; } catch (e) {}
+}
+function stopPresent(){
+  const wrap = $('present');
+  wrap.classList.remove('on', 'show');
+  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  try { document.body.style.overflow = ''; } catch (e) {}
+}
+
+/* ---------- 记忆上次输入 ---------- */
+function save(){
+  try {
+    localStorage.setItem('wx-popup-v1', JSON.stringify({
+      name: state.name, msg: state.msg, time: state.time,
+      showIcon: state.showIcon, showTime: state.showTime, shadow: state.shadow,
+      radius: state.radius, maxLines: state.maxLines, scale: state.scale,
+      bg: state.bg, bgColor: state.bgColor, font: state.font,
+      deform: state.deform, deformSeed: state.deformSeed,
+      deformAmount: state.deformAmount, deformFit: state.deformFit
+    }));
+  } catch (e) {}
+}
+function load(){
+  try {
+    const raw = localStorage.getItem('wx-popup-v1');
+    if (!raw) return;
+    Object.assign(state, JSON.parse(raw));
+    $('f-name').value = state.name; $('f-msg').value = state.msg; $('f-time').value = state.time;
+    $('o-icon').checked = state.showIcon; $('o-time').checked = state.showTime; $('o-shadow').checked = state.shadow;
+    $('o-radius').value = state.radius; $('v-radius').textContent = state.radius;
+    $('o-lines').value = state.maxLines; $('o-scale').value = state.scale;
+    $('o-bg').value = state.bg;
+    $('row-bg-color').style.display = state.bg === 'color' ? 'flex' : 'none';
+    $('row-bg-img').style.display   = state.bg === 'image' ? 'flex' : 'none';
+    $('row-bg-blur').style.display  = state.bg === 'image' ? 'flex' : 'none';
+    $('o-font').value = state.font;
+    syncDeformUI();
+    syncChips();
+  } catch (e) {}
+}
+
+/* =========================================================
+   启动
+   ========================================================= */
+function loadImage(src){
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = rej;
+    im.src = src;
+  });
+}
+
+async function boot(){
+  const q = new URLSearchParams(location.search);
+  const isRaw = q.get('mode') === 'raw';
+
+  /* URL 参数覆盖（便于批量出图 / 自动截图） */
+  if (q.has('u')) state.name = q.get('u');
+  if (q.has('m')) state.msg  = q.get('m');
+  if (q.has('t')) state.time = q.get('t');
+  if (q.has('s')) state.scale = +q.get('s');
+  if (q.has('shadow')) state.shadow = q.get('shadow') !== '0';
+  if (q.has('bg')) state.bg = q.get('bg');
+  if (q.has('c')) state.bgColor = q.get('c');
+  if (q.has('font')) state.font = q.get('font');
+  if (q.has('icon')) state.showIcon = q.get('icon') !== '0';
+  if (q.has('showtime')) state.showTime = q.get('showtime') !== '0';
+  if (q.has('radius')) state.radius = +q.get('radius');
+  if (q.has('deform')) state.deform = q.get('deform') !== '0';
+  if (q.has('amount')) state.deformAmount = Math.max(20, Math.min(140, +q.get('amount') || 100));
+  if (q.has('fit')){
+    const f = q.get('fit');
+    state.deformFit = (f === 'fixed' || f === 'width') ? f : 'fit';
+  }
+  if (q.has('seed')){
+    const sd = q.get('seed');
+    state.deformSeed = sd === 'random' ? randomSeed() : Math.max(1, parseInt(sd, 10) || 1);
+  }
+
+  if (WECHAT_ICON){
+    try { iconImg = await loadImage(WECHAT_ICON); } catch (e) { iconImg = null; }
+  } else {
+    iconImg = null;                                  // 公开版不含第三方图标，由用户自行上传
+  }
+
+  if (isRaw){
+    document.body.classList.add('raw');
+    const scale = q.has('s') ? +q.get('s') : 1;
+    const cv = $('raw-canvas');
+    renderTo(cv, state, scale);
+    cv.style.width = cv.width + 'px';
+    cv.style.height = cv.height + 'px';
+    // 供截图脚本读取的元数据
+    const meta = document.createElement('div');
+    meta.id = 'raw-meta';
+    meta.style.cssText = 'position:absolute;left:-9999px';
+    meta.textContent = q.has('emit') ? cv.toDataURL('image/png') : (cv.width + 'x' + cv.height);
+    document.body.appendChild(meta);
+    document.title = 'raw ' + cv.width + 'x' + cv.height;
+    return;
+  }
+
+  load();
+  bind();
+  syncDeformUI();
+  syncChips();
+  updateLineCount();
+  renderPreview();
+  if (!iconImg) setTimeout(() => toast('未内置图标：可在「细节与输出设置 → 替换图标」上传你自己的图标'), 1000);
+  // 字体/图像就绪后再刷新一次，避免首帧 fallback
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderPreview);
+  setTimeout(renderPreview, 260);
+}
+
+/* 供外部脚本调用（无 UI 出图）：返回 dataURL */
+window.__wxPopupRender = function(over){
+  const st = Object.assign({}, state, over || {});
+  const cv = document.createElement('canvas');
+  renderTo(cv, st, st.scale || 1);
+  return cv.toDataURL('image/png');
+};
+window.__wxPopupReady = false;
+boot().then(() => { window.__wxPopupReady = true; });
+</script>
+</body>
+</html>
